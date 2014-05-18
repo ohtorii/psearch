@@ -1,11 +1,23 @@
 /* psearch.mac
+
 検索結果をポップアップ表示する秀丸マクロ。
 （xyzzyのpsearchに相当するマクロです。）
 
 
 【動作】
-選択文字列を検索してポップアップ表示します。
-選択文字列がなければ単語選択してから検索します。
+カーソル位置にある単語を検索し、検索結果をメニューで一覧表示します。
+更に、メニューから単語のある行へジャンプすることができます。
+
+選択の「あり・なし」で検索方法が変わります。
+    選択無し：カーソル位置の単語を検索。
+    選択あり：選択された文字を検索。（単語では検索しない）
+
+
+【動作を確認した環境】
+・秀丸エディタ 8.40 b40
+・田楽DLL
+  http://www.ceres.dti.ne.jp/~sugiura/
+  田楽DLL Ver.3.20で動作することを確認しています、別途インストールしてください。
 
 
 【オリジナルの作者】
@@ -13,36 +25,26 @@
 178 ：名無しさん＠お腹いっぱい。 ：2010/10/14(木) 02:08:50 ID:7v+i/hHB0 (2 回発言)
 
 
-【改変 by ohtorii】
-ポップアップ表示の改良
-    ・結果に行番号を追加しました。
-    ・検索結果から重複する行を取り除きました。
-    ・検索開始した位置に矢印を表示するようにしました。
-
-【注意】
-    田楽DLLが必要です。
-    http://www.ceres.dti.ne.jp/~sugiura/
-    田楽DLL Ver.3.20で動作することを確認していますが、多分ver2.xx以降なら動くと思います。
-
 【連絡先】
-    ohtorii
-    http://d.hatena.ne.jp/ohtorii/
-    https://github.com/ohtorii
-
-【履歴】
-    2011/06/19 高速化（10秒の処理時間が一瞬に。10MBのXMLでテスト）
-    2011/03/12 公開
+ohtorii
+http://d.hatena.ne.jp/ohtorii/
+https://github.com/ohtorii
 */
 
-//検索結果を幾つ表示するか。（好みで変更して下さい）
+
+////////////////////////////////////////////////////////////////////////////
+//	カスタマイズ
+////////////////////////////////////////////////////////////////////////////
+//メニューに検索結果を幾つ表示するか。
 #g_max_num = 100;
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////
-//	マクロ本体
+//	メイン処理
 ////////////////////////////////////////////////////////////////////////////
+$g_tabspace="";
 $g_searchbuffer = searchbuffer;
 #g_searchoption = searchoption;
 call Main;
@@ -56,7 +58,8 @@ Main:
 	if(! ##return){
 		return false;
 	}
-
+	call SetupTabSpace;
+	
 	#old_lineno = lineno;
 	#lineno[-1] = lineno;
 	#column[-1] = column;
@@ -124,8 +127,15 @@ GetLineStr:
 	golineend2;
 	endsel;
 	$$text	= gettext2(seltopcolumn, seltoplineno, selendcolumn, selendlineno);
+	call TrimString $$text;
+	$$text = $$return;
+	
+	//& -> &&へ変換する。この処理がないとメニューで文字の下にアンダーバーが付く。
+	$$text=dllfuncstr("GSUB",$$text,"&","&&",-1);
+	
+	
 	//タブ文字を空白文字へ変換する。
-	$$text = dllfuncstr("GSUB", $$text, "\t", "  ", -1);
+	$$text = dllfuncstr("GSUB", $$text, "\t", "    ", -1);
 	return $$text;
 	
 
@@ -146,3 +156,25 @@ LoadDengaku:
 	}
 	return true;
 
+SetupTabSpace:
+	$g_tabspace="";
+	##i=0;
+	while(##i<tabcount){
+		$g_tabspace=$g_tabspace+" ";
+		##i=##i+1;
+	}
+	return;
+	
+TrimString:
+	$$space="\r\n\t 　";//空白文字を定義
+	while(1){
+	  ##word=strlen($$1);
+	  //文字列の先頭に空白文字がある場合、空白文字を削除
+	  if(strstr($$space,leftstr($$1,2))!=-1)$$1=rightstr($$1,##word-2);
+	  else if(strstr($$space,rightstr($$1,2))!=-1)$$1=leftstr($$1,##word-2);
+	  //ここまで全角文字の対処
+	  else if(strstr($$space,leftstr($$1,1))!=-1)$$1=rightstr($$1,##word-1);
+	  else if(strstr($$space,rightstr($$1,1))!=-1)$$1=leftstr($$1,##word-1);
+	  else break;
+	}
+	return $$1;
